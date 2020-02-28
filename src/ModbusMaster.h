@@ -203,7 +203,7 @@ public:
   uint8_t readHoldingRegisters(uint16_t, uint16_t);
   uint8_t readInputRegisters(uint16_t, uint8_t);
 
-  uint8_t fileRequest(uint16_t, uint32_t, uint32_t);
+  uint8_t fileRequest(uint16_t u16ReadAddress, uint32_t u32StartTime, uint32_t u32EndTime);
 
   uint8_t writeSingleCoil(uint16_t, uint8_t);
   uint8_t writeSingleRegister(uint16_t, uint16_t);
@@ -218,7 +218,7 @@ public:
 private:
   Stream *_serial;                               ///< reference to serial port object
   uint8_t _u8MBSlave;                            ///< Modbus slave (1..255) initialized in begin()
-  static const uint8_t ku8MaxBufferSize = 64;    ///< size of response/transmit buffers
+  static const uint8_t ku8MaxBufferSize = 255;    ///< size of response/transmit buffers
   uint16_t _u16ReadAddress;                      ///< slave register from which to read
   uint16_t _u16ReadQty;                          ///< quantity of words to read
   uint16_t _u16ResponseBuffer[ku8MaxBufferSize]; ///< buffer to store Modbus slave response; read via GetResponseBuffer()
@@ -237,9 +237,9 @@ private:
 
   static const uint8_t ku8MBFileRequest = 0x41;
   static const uint8_t ku8MBSubFileRequest = 0x05;
-  static const uint8_t ku8MBFileRequestDataLen = 0x0a;
-  static const uint8_t ku8MBFileRequestType = 0xa3;
-  static const uint32_t ku8MBFileRequestHeader = 0x0c300206;
+  static const uint8_t ku8MBFileRequestDataLen = 0x0A;
+  static const uint8_t ku8MBFileRequestType = 0xA3;
+  static const uint32_t ku8MBFileRequestHeader = 0x0C;//0x0C300206;
   static const uint8_t twoZeros = 0x00;
 
   // Modbus function codes for bit access
