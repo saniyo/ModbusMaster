@@ -112,7 +112,6 @@ void ModbusMaster::sendBit(bool data)
   }
 }
 
-
 void ModbusMaster::send(uint16_t data)
 {
   if (_u8TransmitBufferIndex < ku8MaxBufferSize)
@@ -162,12 +161,6 @@ uint16_t ModbusMaster::receive(void)
 }
 
 
-
-
-
-
-
-
 /**
 Set idle time callback function (cooperative multitasking).
 
@@ -182,6 +175,7 @@ void ModbusMaster::idle(void (*idle)())
 {
   _idle = idle;
 }
+
 
 /**
 Set pre-transmission callback function.
@@ -407,6 +401,22 @@ uint8_t ModbusMaster::readInputRegisters(uint16_t u16ReadAddress,
   return ModbusMasterTransaction(ku8MBReadInputRegisters);
 }
 
+/**
+Special modbus function 0x41
+Make HistoryDataRequest
+*/
+
+uint8_t ModbusMaster::fileRequest(uint16_t u16ReadAddress, 
+                                      uint32_t u32StartTime, 
+                                      uint32_t u32EndTime)
+{
+  _u16ReadAddress = u16ReadAddress;
+  _u32StartTime = u32StartTime;
+  _u32EndTime = u32EndTime;
+
+  return ModbusMasterTransaction(ku8MBFileRequest);
+}
+
 
 /**
 Modbus function 0x05 Write Single Coil.
@@ -475,6 +485,7 @@ uint8_t ModbusMaster::writeMultipleCoils(uint16_t u16WriteAddress,
   _u16WriteQty = u16BitQty;
   return ModbusMasterTransaction(ku8MBWriteMultipleCoils);
 }
+
 uint8_t ModbusMaster::writeMultipleCoils()
 {
   _u16WriteQty = u16TransmitBufferLength;
@@ -623,6 +634,17 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
       u8ModbusADU[u8ModbusADUSize++] = highByte(_u16ReadQty);
       u8ModbusADU[u8ModbusADUSize++] = lowByte(_u16ReadQty);
       break;
+    case ku8MBFileRequest:
+      u8ModbusADU[u8ModbusADUSize++] = ku8MBSubFileRequest;
+      u8ModbusADU[u8ModbusADUSize++] = ku8MBFileRequestDataLen;
+      u8ModbusADU[u8ModbusADUSize++] = ku8MBFileRequestType;
+      u8ModbusADU[u8ModbusADUSize++] = highWord(ku8MBFileRequestHeader);
+      u8ModbusADU[u8ModbusADUSize++] = lowWord(ku8MBFileRequestHeader);
+      u8ModbusADU[u8ModbusADUSize++] = highWord(_u32StartTime);
+      u8ModbusADU[u8ModbusADUSize++] = lowWord(_u32StartTime);
+      u8ModbusADU[u8ModbusADUSize++] = highWord(_u32EndTime);
+      u8ModbusADU[u8ModbusADUSize++] = lowWord(_u32EndTime);
+      u8ModbusADU[u8ModbusADUSize++] = twoZeros;
   }
   
   switch(u8MBFunction)
@@ -794,6 +816,10 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
           
         case ku8MBMaskWriteRegister:
           u8BytesLeft = 5;
+          break;
+        
+        case ku8MBFileRequest:
+          u8BytesLeft = u8ModbusADU[3];
           break;
       }
     }
