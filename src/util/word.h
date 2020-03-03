@@ -60,5 +60,56 @@ static inline uint16_t highWord(uint32_t ww)
   return (uint16_t) ((ww) >> 16);
 }
 
+static inline uint32_t bytesToDword(uint32_t b3,uint32_t b2,uint32_t b1,uint32_t b0)
+{
+  return (uint32_t) ((b3 << 24) | (b2 << 16) | (b1 << 8) | b0);
+}
+
+/** @ingroup util_word
+    Return high word of a 32-bit integer.
+
+    @param uint32_t ww (0x00000000..0xFFFFFFFF)
+    @return bytes of input parameter
+*/
+
+union ui32_4bytes 
+{
+ struct
+  {
+   byte b1;
+   byte b2;
+   byte b3;
+   byte b4;
+  
+  }; 
+  uint32_t equals;
+};
+
+/** @ingroup util_crPrintHEX
+    
+    Serial.print("  1-Digit=");  crPrintHEX(DATA,1);
+    Serial.print("  4-Digits="); crPrintHEX(DATA,4);
+    Serial.print("  7-Digits="); crPrintHEX(DATA,7);
+    Serial.print("  8-Digits="); crPrintHEX(DATA,8);
+
+    @param DATA
+    @param numChars
+    
+    @return print HEX with leading zero
+    Prints: 1-Digit=E    4-Digits=017E    7-Digits=000017E    8-Digits=0000017E
+*/
+static inline void crPrintHEX(unsigned long DATA, unsigned char numChars)
+{
+  unsigned long mask = 0x0000000F;
+  mask = mask << 4 * (numChars - 1);
+
+  for (unsigned int i = numChars; i > 0; --i)
+  {
+    Serial.print(((DATA & mask) >> (i - 1) * 4), HEX);
+    mask = mask >> 4;
+  }
+
+  Serial.print(" ");
+}
 
 #endif /* _UTIL_WORD_H_ */

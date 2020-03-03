@@ -57,6 +57,7 @@ Set to 1 to enable debugging features within class:
 // functions to manipulate words
 #include "util/word.h"
 
+#include "TimeLib.h"
 /* _____CLASS DEFINITIONS____________________________________________________ */
 /**
 Arduino class library for communicating with Modbus slaves over 
@@ -85,7 +86,7 @@ public:
     
     @ingroup constant
     */
-  static const uint8_t ku8MBIllegalFunction = 0x01;
+    static const uint8_t ku8MBIllegalFunction = 0x01;
 
   /**
     Modbus protocol illegal data address exception.
@@ -203,7 +204,7 @@ public:
   uint8_t readHoldingRegisters(uint16_t, uint16_t);
   uint8_t readInputRegisters(uint16_t, uint8_t);
 
-  uint8_t fileRequest(uint16_t u16ReadAddress, uint32_t u32StartTime, uint32_t u32EndTime);
+  uint8_t fileRequest(uint32_t u32StartTime, uint32_t u32EndTime);
 
   uint8_t writeSingleCoil(uint16_t, uint8_t);
   uint8_t writeSingleRegister(uint16_t, uint16_t);
@@ -215,11 +216,27 @@ public:
   uint8_t readWriteMultipleRegisters(uint16_t, uint16_t, uint16_t, uint16_t);
   uint8_t readWriteMultipleRegisters(uint16_t, uint16_t);
 
+
+static const uint16_t recordsMax = 900;
+
+    struct DataRecord
+  {
+    /* data */
+    time_t timeStamp;
+    uint16 value1;
+    uint16 value2;
+  };
+
+tmElements_t timeStamp;
+
+
+DataRecord Records[recordsMax];
+
 private:
   Stream *_serial;                               ///< reference to serial port object
   uint8_t _u8MBSlave;                            ///< Modbus slave (1..255) initialized in begin()
   static const uint8_t ku8MaxBufferSize = 255;    ///< size of response/transmit buffers
-  uint16_t _u16ReadAddress;                      ///< slave register from which to read
+  uint16_t _u16ReadAddress;                     ///< slave register from which to read
   uint16_t _u16ReadQty;                          ///< quantity of words to read
   uint16_t _u16ResponseBuffer[ku8MaxBufferSize]; ///< buffer to store Modbus slave response; read via GetResponseBuffer()
   uint16_t _u16WriteAddress;                     ///< slave register to which to write
@@ -232,18 +249,45 @@ private:
   uint8_t _u8ResponseBufferIndex;
   uint8_t _u8ResponseBufferLength;
 
-  uint32_t _u32StartTime; //file request start time
-  uint32_t _u32EndTime; //file request end time
+  //File request
+  uint32_t _u32FileRequestStartTime; //file request start time
+  uint32_t _u32FileRequestEndTime;   //file request end time
 
   static const uint8_t ku8MBFileRequest = 0x41;
-  static const uint8_t ku8MBSubFileRequest = 0x05;
-  static const uint8_t ku8MBFileRequestDataLen = 0x0A;
+  
+  enum SubFunction
+  {
+    INIT_REQ = 0x05,
+    FRAME_REQ = 0x06,
+    FINISH_REQ = 0x0c
+  };
+
+  SubFunction _subFunction;
+
+  static const uint8_t ku8MBFileRequestDataLen = 0x0F;
   static const uint8_t ku8MBFileRequestType = 0xA3;
-  static const uint32_t ku8MBFileRequestHeader = 0x0C;//0x0C300206;
+  static const uint8_t ku8MBFileRequestPreHeader = 0x30;
+  static const uint32_t ku32MBFileRequestHeader = 0x0C300206;
   static const uint8_t twoZeros = 0x00;
 
+  uint32_t _fileSize = 0;
+  uint8_t _dataFrameSize = 0;
+
+  uint16_t _u16FRMaxFrameNum; 
+  uint8_t _u8FRFrameNum;
+  static const uint8_t ku8MBframeLen = 0xE0;
+  static const uint8_t recordOffSet = 6;
+  static const uint8_t recordDataOffSet = 9;
+  
+  static const uint8_t recordSize = 16;
+  
+  uint8_t _recordInd;
+
+
+
+
   // Modbus function codes for bit access
-  static const uint8_t ku8MBReadCoils = 0x01;      ///< Modbus function 0x01 Read Coils
+  static const uint8_t ku8MBReadCoils = 0x01;          ///< Modbus function 0x01 Read Coils
   static const uint8_t ku8MBReadDiscreteInputs = 0x02; ///< Modbus function 0x02 Read Discrete Inputs
   static const uint8_t ku8MBWriteSingleCoil = 0x05;    ///< Modbus function 0x05 Write Single Coil
   static const uint8_t ku8MBWriteMultipleCoils = 0x0F; ///< Modbus function 0x0F Write Multiple Coils
@@ -257,7 +301,7 @@ private:
   static const uint8_t ku8MBReadWriteMultipleRegisters = 0x17; ///< Modbus function 0x17 Read Write Multiple Registers
 
   // Modbus timeout [milliseconds]
-  static const uint16_t ku16MBResponseTimeout = 10000; ///< Modbus timeout [milliseconds]
+  static const uint16_t ku16MBResponseTimeout = 6000; ///< Modbus timeout [milliseconds]
 
   // master function that conducts Modbus transactions
   uint8_t ModbusMasterTransaction(uint8_t u8MBFunction);
