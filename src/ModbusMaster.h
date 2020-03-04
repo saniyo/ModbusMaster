@@ -86,7 +86,7 @@ public:
     
     @ingroup constant
     */
-    static const uint8_t ku8MBIllegalFunction = 0x01;
+  static const uint8_t ku8MBIllegalFunction = 0x01;
 
   /**
     Modbus protocol illegal data address exception.
@@ -204,7 +204,7 @@ public:
   uint8_t readHoldingRegisters(uint16_t, uint16_t);
   uint8_t readInputRegisters(uint16_t, uint8_t);
 
-  uint8_t fileRequest(uint32_t u32StartTime, uint32_t u32EndTime);
+  uint8_t fileRequest(uint32_t u32FRStartTime, uint32_t u32FREndTime);
 
   uint8_t writeSingleCoil(uint16_t, uint8_t);
   uint8_t writeSingleRegister(uint16_t, uint16_t);
@@ -216,10 +216,11 @@ public:
   uint8_t readWriteMultipleRegisters(uint16_t, uint16_t, uint16_t, uint16_t);
   uint8_t readWriteMultipleRegisters(uint16_t, uint16_t);
 
+  uint32_t u32StartTime;
 
-static const uint16_t recordsMax = 900;
+  static const uint16_t recordsMax = 900;
 
-    struct DataRecord
+  struct DataRecord
   {
     /* data */
     time_t timeStamp;
@@ -227,16 +228,15 @@ static const uint16_t recordsMax = 900;
     uint16 value2;
   };
 
-tmElements_t timeStamp;
+  tmElements_t timeStamp;
 
-
-DataRecord Records[recordsMax];
+  DataRecord Records[recordsMax];
 
 private:
   Stream *_serial;                               ///< reference to serial port object
   uint8_t _u8MBSlave;                            ///< Modbus slave (1..255) initialized in begin()
-  static const uint8_t ku8MaxBufferSize = 255;    ///< size of response/transmit buffers
-  uint16_t _u16ReadAddress;                     ///< slave register from which to read
+  static const uint8_t ku8MaxBufferSize = 255;   ///< size of response/transmit buffers
+  uint16_t _u16ReadAddress;                      ///< slave register from which to read
   uint16_t _u16ReadQty;                          ///< quantity of words to read
   uint16_t _u16ResponseBuffer[ku8MaxBufferSize]; ///< buffer to store Modbus slave response; read via GetResponseBuffer()
   uint16_t _u16WriteAddress;                     ///< slave register to which to write
@@ -254,7 +254,7 @@ private:
   uint32_t _u32FileRequestEndTime;   //file request end time
 
   static const uint8_t ku8MBFileRequest = 0x41;
-  
+
   enum SubFunction
   {
     INIT_REQ = 0x05,
@@ -273,18 +273,15 @@ private:
   uint32_t _fileSize = 0;
   uint8_t _dataFrameSize = 0;
 
-  uint16_t _u16FRMaxFrameNum; 
+  uint16_t _u16FRMaxFrameNum;
   uint8_t _u8FRFrameNum;
   static const uint8_t ku8MBframeLen = 0xE0;
   static const uint8_t recordOffSet = 6;
   static const uint8_t recordDataOffSet = 9;
-  
+
   static const uint8_t recordSize = 16;
-  
+
   uint8_t _recordInd;
-
-
-
 
   // Modbus function codes for bit access
   static const uint8_t ku8MBReadCoils = 0x01;          ///< Modbus function 0x01 Read Coils
@@ -301,7 +298,7 @@ private:
   static const uint8_t ku8MBReadWriteMultipleRegisters = 0x17; ///< Modbus function 0x17 Read Write Multiple Registers
 
   // Modbus timeout [milliseconds]
-  static const uint16_t ku16MBResponseTimeout = 6000; ///< Modbus timeout [milliseconds]
+  static const uint16_t ku16MBResponseTimeout = 10000; ///< Modbus timeout [milliseconds]
 
   // master function that conducts Modbus transactions
   uint8_t ModbusMasterTransaction(uint8_t u8MBFunction);

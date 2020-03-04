@@ -380,47 +380,79 @@ Special modbus function 0x41
 Make HistoryDataRequest
 */
 
-uint8_t ModbusMaster::fileRequest(uint32_t u32StartTime, uint32_t u32EndTime)
+uint8_t ModbusMaster::fileRequest(uint32_t u32FRStartTime, uint32_t u32FREndTime)
 {
-  _u32FileRequestStartTime = u32StartTime;
-  _u32FileRequestEndTime = u32EndTime;
-  // _subFunction = INIT_REQ;
-  // return ModbusMasterTransaction(ku8MBFileRequest);
-  ////////////////
-  if (_subFunction != FRAME_REQ && _subFunction != FINISH_REQ)
-  {
-    _subFunction = INIT_REQ;
-  }
+  _u32FileRequestStartTime = u32FRStartTime;
+  _u32FileRequestEndTime = u32FREndTime;
+  _subFunction = INIT_REQ;
   int ret_val = 5;
 
-  while (ret_val != 0)
+  switch (_subFunction)
   {
+  case INIT_REQ:
+  Serial.println("INIT_REQ");
     ret_val = ModbusMasterTransaction(ku8MBFileRequest);
-  }
-
-  if (ret_val == 0 && _u16FRMaxFrameNum > 0)
-  {
-    _subFunction = FRAME_REQ;
+    if (ret_val == 0)
+    {
+      _subFunction = FRAME_REQ;
+    }
+    else
+    {
+      return ret_val;
+    }
+    
+  case FRAME_REQ:
+  Serial.println("FRAME_REQ");
     for (int i = 0; i < ((int)_u16FRMaxFrameNum); i++)
     {
       _u8FRFrameNum = i;
       ret_val = ModbusMasterTransaction(ku8MBFileRequest);
     }
-    //ret_val = ModbusMasterTransaction(ku8MBFileRequest);
-    // for (_u8FRFrameIterator = 0; _u8FRFrameIterator == _u16FRMaxFrameNum; _u8FRFrameIterator++)
-    // {
-    //   Serial.print("Frames Qty:");
-    //   Serial.print(_u16FRMaxFrameNum);
-    //   Serial.println(_subFunction);
-    //   ret_val = ModbusMasterTransaction(ku8MBFileRequest);
-    // }
     if (ret_val == 0)
     {
       _subFunction = FINISH_REQ;
-      ModbusMasterTransaction(ku8MBFileRequest);
-      _subFunction = INIT_REQ;
     }
+    else
+    {
+      return ret_val;
+    }
+    
+  case FINISH_REQ:
+  Serial.println("FINISH_REQ");
+    ret_val = ModbusMasterTransaction(ku8MBFileRequest);
+    return ret_val;
   }
+
+  // _subFunction = INIT_REQ;
+  // return ModbusMasterTransaction(ku8MBFileRequest);
+  ////////////////
+  // if (_subFunction != FRAME_REQ && _subFunction != FINISH_REQ)
+  // {
+  //   _subFunction = INIT_REQ;
+  // }
+  // int ret_val = 5;
+
+  // while (ret_val != 0)
+  // {
+  //   ret_val = ModbusMasterTransaction(ku8MBFileRequest);
+  // }
+
+  // if (ret_val == 0 && _u16FRMaxFrameNum > 0)
+  // {
+  //   _subFunction = FRAME_REQ;
+  //   for (int i = 0; i < ((int)_u16FRMaxFrameNum); i++)
+  //   {
+  //     _u8FRFrameNum = i;
+  //     ret_val = ModbusMasterTransaction(ku8MBFileRequest);
+  //   }
+
+  //   if (ret_val == 0)
+  //   {
+  //     _subFunction = FINISH_REQ;
+  //     ModbusMasterTransaction(ku8MBFileRequest);
+  //     _subFunction = INIT_REQ;
+  //   }
+  // }
 }
 /**
 Modbus function 0x05 Write Single Coil.
@@ -612,7 +644,7 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
   uint8_t u8ModbusADUSize = 0;
   uint8_t i, u8Qty;
   uint16_t u16CRC;
-  uint32_t u32StartTime;
+
   uint8_t u8BytesLeft = 8;
   uint8_t u8MBStatus = ku8MBSuccess;
 
@@ -752,8 +784,8 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
 
   // flush receive buffer before transmitting request
   //Serial.print(">>");
-  while (_serial->read() != -1)
-    ;
+  while (_serial->read() != -1);
+
   // transmit request
   if (_preTransmission)
   {
@@ -776,32 +808,20 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
 
   // loop until we run out of time or bytes, or an error occurs
   u32StartTime = millis();
-
+  
   while (u8BytesLeft && !u8MBStatus)
   {
     if (_serial->available())
     {
-#if __MODBUSMASTER_DEBUG__
-      digitalWrite(__MODBUSMASTER_DEBUG_PIN_A__, true);
-#endif
       u8ModbusADU[u8ModbusADUSize++] = _serial->read();
       u8BytesLeft--;
-#if __MODBUSMASTER_DEBUG__
-      digitalWrite(__MODBUSMASTER_DEBUG_PIN_A__, false);
-#endif
     }
     else
     {
-#if __MODBUSMASTER_DEBUG__
-      digitalWrite(__MODBUSMASTER_DEBUG_PIN_B__, true);
-#endif
       if (_idle)
       {
         _idle();
       }
-#if __MODBUSMASTER_DEBUG__
-      digitalWrite(__MODBUSMASTER_DEBUG_PIN_B__, false);
-#endif
     }
 
     // evaluate slave ID, function code once enough bytes have been read
@@ -859,12 +879,9 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
     {
       u8MBStatus = ku8MBResponseTimedOut;
     }
+    ESP.wdtFeed();
   }
-  //u16CRC = MRTU_CRC(u8ModbusADU, u8ModbusADUSize - 2);
-  //u16CRC = CRC16(u8ModbusADU, u8ModbusADUSize - 2);
-  // Serial.print("CRC:");Serial.print(u16CRC);
 
-  // verify response is large enough to inspect further
   if (!u8MBStatus && u8ModbusADUSize >= 5)
   {
     // calculate CRC
