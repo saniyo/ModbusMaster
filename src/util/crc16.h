@@ -188,7 +188,7 @@ inline uint16_t CRC16(const uint8_t *nData, uint16_t wLength)
     @param uint8_t a (0x00..0xFF)
     @return calculated CRC (0x0000..0xFFFF)
 */
-static uint16_t crc16_update(uint16_t crc, uint8_t a)
+inline static uint16_t crc16_update(uint16_t crc, uint8_t a)
 {
   int i;
 

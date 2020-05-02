@@ -55,10 +55,10 @@ Call once class has been instantiated, typically within setup().
 @param &serial reference to serial port object (Serial, Serial1, ... Serial3)
 @ingroup setup
 */
-void ModbusMaster::begin(uint8_t slave, Stream &serial)
+void ModbusMaster::begin(Stream &serial)
 {
   //  txBuffer = (uint16_t*) calloc(ku8MaxBufferSize, sizeof(uint16_t));
-  _u8MBSlave = slave;
+  
   _serial = &serial;
   _u8TransmitBufferIndex = 0;
   u16TransmitBufferLength = 0;
@@ -67,6 +67,13 @@ void ModbusMaster::begin(uint8_t slave, Stream &serial)
   pinMode(__MODBUSMASTER_DEBUG_PIN_A__, OUTPUT);
   pinMode(__MODBUSMASTER_DEBUG_PIN_B__, OUTPUT);
 #endif
+}
+
+void ModbusMaster::setSlave(uint8_t slave)
+{
+  _u8MBSlave = slave;
+  _u8TransmitBufferIndex = 0;
+  u16TransmitBufferLength = 0;
 }
 
 void ModbusMaster::beginTransmission(uint16_t u16Address)
@@ -79,7 +86,7 @@ void ModbusMaster::beginTransmission(uint16_t u16Address)
 // eliminate this function in favor of using existing MB request functions
 uint8_t ModbusMaster::requestFrom(uint16_t address, uint16_t quantity)
 {
-  uint8_t read;
+  uint8_t read = 0;
   // clamp to buffer length
   if (quantity > ku8MaxBufferSize)
   {
@@ -190,6 +197,10 @@ Receiver Enable pin, and disable its Driver Enable pin.
 void ModbusMaster::postTransmission(void (*postTransmission)())
 {
   _postTransmission = postTransmission;
+}
+
+void ModbusMaster::sendMessage(void (*sendMessage)(DataRecord)) {
+  _sendMessage = sendMessage;
 }
 
 /**
@@ -403,10 +414,9 @@ uint8_t ModbusMaster::fileRequest(uint32_t u32FRStartTime, uint32_t u32FREndTime
     
   case FRAME_REQ:
   Serial.println("FRAME_REQ");
-    for (int i = 0; i < ((int)_u16FRMaxFrameNum); i++)
-    {
-      _u8FRFrameNum = i;
-      ret_val = ModbusMasterTransaction(ku8MBFileRequest);
+  for (_curFrameReq = 0; _curFrameReq < ((int)_u16FRMaxFrameNum); _curFrameReq++) {
+    _u8FRFrameNum = _curFrameReq;
+    ret_val = ModbusMasterTransaction(ku8MBFileRequest);
     }
     if (ret_val == 0)
     {
@@ -422,37 +432,7 @@ uint8_t ModbusMaster::fileRequest(uint32_t u32FRStartTime, uint32_t u32FREndTime
     ret_val = ModbusMasterTransaction(ku8MBFileRequest);
     return ret_val;
   }
-
-  // _subFunction = INIT_REQ;
-  // return ModbusMasterTransaction(ku8MBFileRequest);
-  ////////////////
-  // if (_subFunction != FRAME_REQ && _subFunction != FINISH_REQ)
-  // {
-  //   _subFunction = INIT_REQ;
-  // }
-  // int ret_val = 5;
-
-  // while (ret_val != 0)
-  // {
-  //   ret_val = ModbusMasterTransaction(ku8MBFileRequest);
-  // }
-
-  // if (ret_val == 0 && _u16FRMaxFrameNum > 0)
-  // {
-  //   _subFunction = FRAME_REQ;
-  //   for (int i = 0; i < ((int)_u16FRMaxFrameNum); i++)
-  //   {
-  //     _u8FRFrameNum = i;
-  //     ret_val = ModbusMasterTransaction(ku8MBFileRequest);
-  //   }
-
-  //   if (ret_val == 0)
-  //   {
-  //     _subFunction = FINISH_REQ;
-  //     ModbusMasterTransaction(ku8MBFileRequest);
-  //     _subFunction = INIT_REQ;
-  //   }
-  // }
+  return ret_val;
 }
 /**
 Modbus function 0x05 Write Single Coil.
@@ -958,39 +938,83 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
       case INIT_REQ:
         _u16FRMaxFrameNum = u8ModbusADU[13];
         _fileSize = bytesToDword(u8ModbusADU[5], u8ModbusADU[6], u8ModbusADU[7], u8ModbusADU[8]);
-        _dataFrameSize = u8ModbusADU[9];
-        break;
+
+          _dataFrameSize = u8ModbusADU[9];
+          _recordsCount = 0;
+
+          //External command
+          curRecord.slave = u8ModbusADU[0];
+          curRecord.subCmd = INIT_REQ;
+          curRecord.id = u8ModbusADU[4]; //file type
+          curRecord.timeStamp = _u16FRMaxFrameNum;
+          curRecord.value1 = _fileSize;
+          _sendMessage(curRecord);
+
+          break;
       case FRAME_REQ:
         int record;
         time_t t;
-
+        
         for (record = 0; record < (_dataFrameSize / 16); record++)
         {
           int offSet = recordOffSet + recordDataOffSet + record * recordSize;
           uint32_t data = bytesToDword(u8ModbusADU[offSet + 7], u8ModbusADU[offSet + 6], u8ModbusADU[offSet + 5], u8ModbusADU[offSet + 4]);
+
           if (data != 0xFFFFFFFF)
           {
+            _recordsCount++;
             t = bytesToDword(u8ModbusADU[offSet + 3], u8ModbusADU[offSet + 2], u8ModbusADU[offSet + 1], u8ModbusADU[offSet]);
-            Serial.print(year(t));
-            Serial.print("-");
-            Serial.print(month(t));
-            Serial.print("-");
-            Serial.print(day(t));
-            Serial.print("\t");
-            Serial.print(hour(t));
-            Serial.print(":");
-            Serial.print(minute(t));
-            Serial.print(":");
-            Serial.print(second(t));
-            Serial.print("\t\t");
-            Serial.print(((float)data) / 100.0);
-            Serial.println();
+
+
+
+            // msg = (String)_recordsCount + " " + (String)curRecord.timeStamp + " " + (String)curRecord.value1;
+
+            // Serial.print(_recordsCount);
+            // Serial.print("\t");
+            // Serial.print(t);
+            // Serial.print("\t");
+
+            //Dependancy TimeLib.h
+            // Serial.print(year(t));
+            // Serial.print("-");
+            // Serial.print(month(t));
+            // Serial.print("-");
+            // Serial.print(day(t));
+            // Serial.print("\t");
+            // Serial.print(hour(t));
+            // Serial.print(":");
+            // Serial.print(minute(t));
+            // Serial.print(":");
+            // Serial.print(second(t));
+            // Serial.print("\t\t");
+            
+            //  Serial.print(((float)data) / 100.0);
+            //  Serial.print("\t");
+            //  Serial.print("\t");
+            //  Serial.print(msg);
+            //  Serial.println();
+
+            // External command
+            curRecord.slave = u8ModbusADU[0];
+            curRecord.subCmd = FRAME_REQ;
+            curRecord.id = _recordsCount;
+            curRecord.timeStamp = t;
+            curRecord.value1 = data;  //((float)data) / 100.0;
+
+            _sendMessage(curRecord);
+            
+            
           }
           ESP.wdtFeed();
         }
         break;
       case FINISH_REQ:
-        //return ModbusMasterTransaction(ku8MBFileRequest);
+        // External command
+        curRecord.slave = u8ModbusADU[0];
+        curRecord.subCmd = FINISH_REQ;
+        curRecord.id = u8ModbusADU[4];
+        curRecord.timeStamp = 0xFFFFFFFF;
+        _sendMessage(curRecord);
         break;
       }
     }

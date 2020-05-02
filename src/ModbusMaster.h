@@ -57,36 +57,58 @@ Set to 1 to enable debugging features within class:
 // functions to manipulate words
 #include "util/word.h"
 
-#include "TimeLib.h"
+//#include "TimeLib.h"
 /* _____CLASS DEFINITIONS____________________________________________________ */
 /**
 Arduino class library for communicating with Modbus slaves over 
 RS232/485 (via RTU protocol).
 */
+
+
+
 class ModbusMaster
 {
 public:
   ModbusMaster();
 
-  void begin(uint8_t, Stream &serial);
+  enum SubFunction 
+  { 
+    INIT_REQ = 0x05,
+    FRAME_REQ = 0x06,
+    FINISH_REQ = 0x0c
+   };
+
+  struct DataRecord {
+    /* data */
+    uint8_t slave;
+    SubFunction subCmd;
+    uint16_t id;
+    uint32_t timeStamp;
+    uint16_t value1;
+  };
+
+  void begin(Stream &serial);
+  void setSlave(uint8_t);
   void idle(void (*)());
   void preTransmission(void (*)());
   void postTransmission(void (*)());
+  void sendMessage(void (*)(DataRecord));
+      // Modbus exception codes
+      /**
+        Modbus protocol illegal function exception.
+        
 
-  // Modbus exception codes
-  /**
-    Modbus protocol illegal function exception.
-    
-    The function code received in the query is not an allowable action for
-    the server (or slave). This may be because the function code is only
-    applicable to newer devices, and was not implemented in the unit
-    selected. It could also indicate that the server (or slave) is in the
-    wrong state to process a request of this type, for example because it is
-    unconfigured and is being asked to return register values.
-    
-    @ingroup constant
-    */
-  static const uint8_t ku8MBIllegalFunction = 0x01;
+        The function code received in the query is not an allowable action for
+        the server (or slave). This may be because the function code is only
+        applicable to newer devices, and was not implemented in the unit
+        selected. It could also indicate that the server (or slave) is in the
+        wrong state to process a request of this type, for example because it is
+        unconfigured and is being asked to return register values.
+        
+
+        @ingroup constant
+        */
+      static const uint8_t ku8MBIllegalFunction = 0x01;
 
   /**
     Modbus protocol illegal data address exception.
@@ -216,21 +238,14 @@ public:
   uint8_t readWriteMultipleRegisters(uint16_t, uint16_t, uint16_t, uint16_t);
   uint8_t readWriteMultipleRegisters(uint16_t, uint16_t);
 
+  int _curFrameReq = 0;
   uint32_t u32StartTime;
+   
+  DataRecord curRecord;
 
-  static const uint16_t recordsMax = 900;
 
-  struct DataRecord
-  {
-    /* data */
-    time_t timeStamp;
-    uint16 value1;
-    uint16 value2;
-  };
-
-  tmElements_t timeStamp;
-
-  DataRecord Records[recordsMax];
+  typedef struct DataRecord DataRecord_t;
+ 
 
 private:
   Stream *_serial;                               ///< reference to serial port object
@@ -255,12 +270,6 @@ private:
 
   static const uint8_t ku8MBFileRequest = 0x41;
 
-  enum SubFunction
-  {
-    INIT_REQ = 0x05,
-    FRAME_REQ = 0x06,
-    FINISH_REQ = 0x0c
-  };
 
   SubFunction _subFunction;
 
@@ -272,16 +281,19 @@ private:
 
   uint32_t _fileSize = 0;
   uint8_t _dataFrameSize = 0;
-
   uint16_t _u16FRMaxFrameNum;
   uint8_t _u8FRFrameNum;
+
+  uint32_t _recordsCount = 0;
+
+  // uint8_t _recordInd;
+
   static const uint8_t ku8MBframeLen = 0xE0;
   static const uint8_t recordOffSet = 6;
   static const uint8_t recordDataOffSet = 9;
 
   static const uint8_t recordSize = 16;
 
-  uint8_t _recordInd;
 
   // Modbus function codes for bit access
   static const uint8_t ku8MBReadCoils = 0x01;          ///< Modbus function 0x01 Read Coils
@@ -303,12 +315,14 @@ private:
   // master function that conducts Modbus transactions
   uint8_t ModbusMasterTransaction(uint8_t u8MBFunction);
 
-  // idle callback function; gets called during idle time between TX and RX
+    // idle callback function; gets called during idle time between TX and RX
   void (*_idle)();
   // preTransmission callback function; gets called before writing a Modbus message
   void (*_preTransmission)();
   // postTransmission callback function; gets called after a Modbus message has been sent
   void (*_postTransmission)();
+
+  void (*_sendMessage)(DataRecord);
 };
 #endif
 
